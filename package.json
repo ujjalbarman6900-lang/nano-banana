@@ -1,7 +1,7 @@
 {
   "name": "gemini-api-backend",
   "version": "1.0.0",
-  "description": "Backend to safely call Gemini API",
+  "description": "Backend to securely call the Gemini API",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
