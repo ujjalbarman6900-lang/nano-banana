@@ -1,59 +1,50 @@
-import express from "express";
-import fetch from "node-fetch";
+const express = require('express');
+const cors = require('cors');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const path = require('path');
 
 const app = express();
-app.use(express.json({ limit: "10mb" })); // allow large base64 images
+const PORT = process.env.PORT || 3000;
 
-app.post("/generate-image", async (req, res) => {
-  try {
-    const { prompt, image } = req.body;
+// Set your API key in a secure environment variable
+const API_KEY = process.env.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY';
 
-    // Build request payload according to Gemini Image API spec
-    const requestBody = {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: prompt || "" },
-            ...(image
-              ? [
-                  {
-                    inline_data: {
-                      mime_type: "image/png",
-                      data: image
-                    }
-                  }
-                ]
-              : [])
-          ]
+// Initialize the Google Generative AI with your API key
+const genAI = new GoogleGenerativeAI(API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+
+// Use CORS to allow your frontend to connect
+app.use(cors());
+app.use(express.json());
+
+// Serve the HTML file at the root
+app.use(express.static(path.join(__dirname, 'public')));
+
+// The API endpoint that your frontend will call
+app.post('/generate-image', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+
+        if (!prompt) {
+            return res.status(400).json({ error: 'Prompt is required.' });
         }
-      ],
-      generationConfig: {
-        size: "1024x1024"
-      }
-    };
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generate?key=${process.env.API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
-      }
-    );
+        // Generate the image using the Gemini API
+        const result = await model.generateContent(prompt);
+        
+        // Assuming the API returns a Base64 encoded image directly
+        // The Gemini API response structure may vary, you might need to adjust this
+        const imageData = result.response.candidates[0].content.parts[0].data;
 
-    const data = await response.json();
+        // Send the Base64 image data back to the frontend
+        res.json({ imageData: imageData });
 
-    if (data.error) {
-      return res.status(400).json({ error: data.error.message });
+    } catch (error) {
+        console.error('Error generating image:', error);
+        res.status(500).json({ error: 'Failed to generate image. Check server logs.' });
     }
-
-    res.json(data);
-  } catch (error) {
-    console.error("Image generation failed:", error);
-    res.status(500).json({ error: "Image generation failed" });
-  }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
